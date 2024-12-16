@@ -1,47 +1,42 @@
-'use client'
+"use client";
 
-import { useEffect, useActionState, useState } from 'react'
-import NotePreview from '@/components/NotePreview'
-import { deleteNote, saveNote } from '@/actions'
-import SaveButton from '@/components/SaveButton'
-import DeleteButton from '@/components/DeleteButton'
+import { useEffect, useActionState, useState } from "react";
+import NotePreview from "@/components/NotePreview";
+import SaveButton from "@/components/SaveButton";
+import DeleteButton from "@/components/DeleteButton";
+import { deleteNote, saveNote } from "app/[Ing]/actions";
 
 const initialState = {
   message: null,
-}
+};
 
-export default function NoteEditor({
-  noteId,
-  initialTitle,
-  initialBody
-}) {
+export default function NoteEditor({ noteId, initialTitle, initialBody }) {
+  const [saveState, saveFormAction] = useActionState(saveNote, initialState);
+  const [delState, delFormAction] = useActionState(deleteNote, initialState);
 
-  const [saveState, saveFormAction] = useActionState(saveNote, initialState)
-  const [delState, delFormAction] = useActionState(deleteNote, initialState)
+  const [title, setTitle] = useState(initialTitle);
+  const [body, setBody] = useState(initialBody);
 
-  const [title, setTitle] = useState(initialTitle)
-  const [body, setBody] = useState(initialBody)
-
-  const isDraft = !noteId
+  const isDraft = !noteId;
 
   useEffect(() => {
     if (saveState.errors) {
       // 处理错误
-      console.log(saveState.errors)
+      console.log(saveState.errors);
     }
-  }, [saveState])
+  }, [saveState]);
 
   return (
     <div className="note-editor">
       <form className="note-editor-form" autoComplete="off">
-        <input type="hidden" name="noteId" value={noteId || ''} />
+        <input type="hidden" name="noteId" value={noteId || ""} />
         <div className="note-editor-menu" role="menubar">
           <SaveButton formAction={saveFormAction} />
           <DeleteButton isDraft={isDraft} formAction={delFormAction} />
         </div>
         <div className="note-editor-menu">
-          { saveState?.message }
-          { saveState.errors && saveState.errors[0].message }
+          {saveState?.message}
+          {saveState.errors && saveState.errors[0].message}
         </div>
         <label className="offscreen" htmlFor="note-title-input">
           Enter a title for your note
@@ -52,7 +47,7 @@ export default function NoteEditor({
           name="title"
           value={title}
           onChange={(e) => {
-            setTitle(e.target.value)
+            setTitle(e.target.value);
           }}
         />
         <label className="offscreen" htmlFor="note-body-input">
@@ -73,5 +68,5 @@ export default function NoteEditor({
         <NotePreview>{body}</NotePreview>
       </div>
     </div>
-  )
+  );
 }

@@ -1,10 +1,10 @@
-import Note from '@/components/Note'
-import {getNote} from '@/lib/redis';
+import Note from "@/components/Note";
+import { getNote } from "@/lib/redis";
 
 export default async function Page({ params }) {
   // 动态路由 获取笔记 id
   const noteId = await params.id;
-  const note = await getNote(noteId)
+  const note = await getNote(noteId);
 
   if (note == null) {
     return (
@@ -13,8 +13,8 @@ export default async function Page({ params }) {
           Click a note on the left to view something! 🥺
         </span>
       </div>
-    )
+    );
   }
 
-  return <Note noteId={noteId} note={note} />
+  return <Note noteId={noteId} note={note} />;
 }

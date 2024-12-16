@@ -1,0 +1,944 @@
+# 路由篇
+
+## Q1: 根布局和普通布局
+
+A1:
+
+1. 支持嵌套
+2. app 目录必须包含 layout.js 且根布局必须包含 html 和 body 标签 其他布局不能包含
+3. 默认根布局是服务端组件 且不能设置为客户端组件
+
+## Q2: 模板(template)的作用是什么？
+
+A2:
+
+### 1. 工作原理
+
+- 模板在路由切换时会为每一个 children 创建新实例
+- 重新创建 DOM 元素，不保留状态
+
+### 2. 适用场景
+
+模板比布局更适合以下场景：
+
+#### a) 需要依赖 useEffect 和 useState 的功能
+
+- 典型例子：页面计数器
+- 特点：每次切换路由都会重新计数
+
+#### b) 需要更改框架默认行为
+
+- 典型例子：Suspense 行为差异
+  - 布局中：fallback UI 仅在首次加载时显示一次
+  - 模板中：fallback UI 在每次路由切换时都会显示
+
+## Q3: loading.js 的实现原理是什么？
+
+A3:
+
+### 1. 基本实现方式
+
+- Next.js 会自动将 page.js 和其 children 用 `<Suspense>` 组件包裹
+- loading.js 作为 Suspense 的 fallback 内容显示
+
+### 2. 工作流程
+
+1. page.js 导出一个 async 函数
+2. Suspense 捕获数据加载过程中产生的 promise
+3. 当 promise 完成时，loading 组件自动关闭
+
+### 3. 关于 async 函数的作用
+
+- 当组件被声明为 async 函数时，React 会：
+  - 识别这是一个异步组件
+  - 在组件渲染过程中等待数据加载
+  - 将数据加载过程转换为 Suspense 可以捕获的 promise
+
+## Q4： 层级问题
+
+A4: <layout> - <template> - <error> - <loading> - <not-found> - <page>
+
+### 补充:根级错误处理(层级意味着无法捕获 layout.js 或 template.js 中的错误)
+
+- 对于顶层错误（如根布局中的错误），Next.js 提供了特殊解决方案
+- 使用 `global-error.js` 文件进行处理
+- 该文件需要放置在 app 目录下
+
+## Q5: not-found.js 的触发条件和使用限制是什么？
+
+A5:
+
+### 1. 触发条件
+
+not-found.js 只能由以下两种情况触发：
+
+- 组件显式抛出 `notFound()` 函数
+- 访问的路由地址不存在
+
+### 2. 文件位置的影响
+
+- 放在 `app/not-found.js`（根目录）
+
+  - 可以修改默认 404 页面样式
+  - 能响应所有的路由不匹配情况
+  - 可以被 `notFound()` 函数触发
+
+- 放在子文件夹下
+  - 只能通过 `notFound()` 函数手动触发
+  - 不会自动响应路由不匹配的情况
+
+### 3. 使用建议
+
+- 如果要自定义全局 404 页面，应将 not-found.js 放在 app 根目录
+- 如果只需要特定路由下的自定义错误页面，可以放在对应子文件夹中，并通过 `notFound()` 函数触发
+
+## Q6: Next.js 中实现路由导航的方式有哪些？
+
+A6:
+
+### 1. `<Link>` 组件
+
+- 用来实现预获取（prefetching） 和客户端路由导航
+- 适用于普通的页面跳转场景
+- 如果需要对当前链接进行判断，你可以使用 usePathname()
+- 跳转行为设置->App Router 的默认行为是滚动到新路由的顶部，或者在前进后退导航时维持之前的滚动距离
+  如果你想要禁用这个行为，你可以给 <Link> 组件传递一个 scroll={false}属性，或者在使用 router.push 和 router.replace 的时候，设置 scroll: false
+
+### 2. `useRouter` Hook
+
+- Next.js 提供的用于更改路由的 hook (使用该 hook 需要在客户端组件)
+- 示例：`router.push('/about')`
+
+### 3. `redirect` 函数
+
+- 用于服务端组件中
+- 提供服务端重定向能力
+- 示例：`redirect('/login')`
+
+### 4. History API
+
+- 使用浏览器原生的历史记录 API
+- 可以直接操作浏览器的历史记录
+- 通常与 usePathname（获取路径名的 hook） 和 useSearchParams（获取页面参数的 hook） 一起使用
+- replaceState 会替换浏览器历史堆栈的当前条目，替换后用户无法后退，比如切换应用的地域设置 ��� 国际化）
+- 示例：`window.history.back()`
+
+## Q7: 各种路由定义
+
+A7:
+
+### 1. 动态路由
+
+- a.[folderName]
+- b.[...folderName] 表示捕获所有后面所有的路由片段
+- c.[[...folderName]] 比如 [[...folderName]]，这表示可选的捕获所有后面所有的路由片段
+
+### 2. 路由组
+
+- 使用路由组，你可以将路由和项目文件按照逻辑进行分组，但不会影响 URL 路径结构。
+- 把文件夹用括号括住就可以了，就比如 (dashboard)
+- 借助路由组，即便在同一层级，也可以创建不同的布局
+- 创建多个根布局，你需要删除掉 app/layout.js 文件，然后在每组都创建一个 layout.js 文件。
+
+### 3. 平行路由（Parallel Routes）
+
+- 平行路由可以使你在同一个布局中同时或者有条件的渲染一个或者多个页面（类似于 Vue 的插槽功能）
+- 平行路由的使用方式是将文件夹以 @作为开头进行命名
+
+用途 1： 同时展示团队（team）和数据分析（analytics）页面 app/layout.js 从 props 中获取 @team 和 @analytics 两个插槽的内容
+
+用途 2：独立路由处理 平行路由可以让你为每个路由定义独立的错误处理和加载界面
+
+用途 3：子导航 除此之外，它们也能像正常的页面一样，添加子页面，比如我们在 @analytics 下添加两个子页面：/page-views and /visitors
+
+### 4. 拦截路由（Intercepting Routes）
+
+- 拦截路由允许你在当前路由拦截其他路由地址并在当前路由中展示内容。
+- 简单的来说，就是希望用户继续停留在重要的页面上。比如上述例子中的图片流页面，开发者肯定是希望用户能够持续在图片流页面浏览，如果点击一张图片就跳转出去，会打断用户的浏览体验，如果点击只展示一个 Modal，分享操作又会变得麻烦一点。拦截路由正好可以实现这样一种平衡。又比如任务列表页面，点击其中一项任务，弹出 Modal 让你能够编辑此任务，同时又可以方便的分享任务内容。
+
+## Q8: Next.js 中的缓存机制是如何工作的？
+
+A8:
+
+### 1. 默认缓存行为
+
+- 开发模式：不会启用缓存，每次请求都会重新获取数据
+- 生产模式：GET 请求使用 `Response` 对象会被自动缓存
+- 缓存时机：在构建时就会预渲染为静态内容，而不是首次请求时
+
+### 2. 退出缓存的条件
+
+以下任一情况都会导致退出缓存：
+
+- GET 请求中使用了 Request 对象
+- 路由中添加了其他 HTTP 方法（如 POST）
+- 使用了动态函数（如 cookies、headers）
+- 路由配置中手动设置为动态模式（`dynamic = 'force-dynamic'`）
+
+### 3. 重新验证（Revalidation）机制
+
+有两种方式可以设置缓存的重新验证：
+
+#### a) 路由段配置
+
+```javascript
+export const revalidate = 10; // 10秒后重新验证
+```
+
+工作方式：
+
+- 不是每 10s 自动更新
+- 是在 10s 后的首次访问触发更新
+- 更新期间返回旧数据，更新完成后的访问才会看到新数据
+
+#### b) fetch 选项配置
+
+```javascript
+fetch(url, { next: { revalidate: 5 } }); // 5秒后重新验证
+```
+
+- 适用于特定的数据请求
+- 工作机制与路由段配置相似
+
+### 4. 使用建议
+
+- 对于实时性要求高的数据：使用动态渲染
+- 对于不常变化的数据：使用默认缓存
+- 对于定期更新的数据：使用重新验证机制
+- 选择合适的缓存策略需要平衡性能和数据新鲜度
+
+## Q9: 中间件如何设置匹配路径？
+
+A9:
+
+### 1. 使用 matcher 配置项
+
+```javascript
+export const config = {
+  // 单个路径匹配
+  matcher: "/about/:path*",
+
+  // 多个路径匹配
+  matcher: ["/about/:path*", "/dashboard/:path*"],
+};
+```
+
+#### 匹配规则说明
+
+- `/about/:path` 只能匹配 `/about`
+- `/about/:path*` 可以匹配 `/about` 及其子路径（如 `/about/xxx`）
+
+### 2. 使用条件语句
+
+```javascript
+export function middleware(request) {
+  // 匹配以 /about 开头的路径
+  if (request.nextUrl.pathname.startsWith("/about")) {
+    return NextResponse.rewrite(new URL("/about-2", request.url));
+  }
+
+  // 匹配以 /dashboard 开头的路径
+  if (request.nextUrl.pathname.startsWith("/dashboard")) {
+    return NextResponse.rewrite(new URL("/dashboard/user", request.url));
+  }
+}
+```
+
+## Q10: 中间件逻辑如何处理常见操作？
+
+A10:
+
+### 1. Cookie 处理
+
+```javascript
+// NextRequest 和 NextResponse 提供的方法：
+const cookie = request.cookies.get("cookieName"); // 读取
+request.cookies.has("cookieName"); // 检查
+request.cookies.set("cookieName", "value"); // 设置
+request.cookies.delete("cookieName"); // 删除单个
+request.cookies.clear(); // 删除所有
+```
+
+### 2. Headers 处理
+
+```javascript
+// 方式一：直接处理请求头
+const requestHeaders = new Headers(request.headers);
+requestHeaders.set("x-hello-from-middleware1", "hello");
+
+// 方式二：通过 NextResponse.next 设置
+const response = NextResponse.next({
+  request: {
+    headers: requestHeaders,
+  },
+});
+requestHeaders.set("x-hello-from-middleware1", "hello");
+```
+
+### 3. CORS 设置
+
+```javascript
+response.headers.set("Access-Control-Allow-Origin", "*");
+response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+response.headers.set("Access-Control-Allow-Headers", "Content-Type");
+```
+
+### 4. 设置响应
+
+```javascript
+export const config = {
+  matcher: "/api/:function*",
+};
+
+export function middleware(request) {
+  // 鉴权判断
+  if (!isAuthenticated(request)) {
+    return new NextResponse(
+      JSON.stringify({
+        success: false,
+        message: "authentication failed",
+      }),
+      {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      }
+    );
+  }
+}
+```
+
+## Q11: Next.js 中的路由响应执行顺序是怎样的？
+
+A11:
+
+### 执行顺序（从先到后）
+
+1. headers（next.config.js）
+2. redirects（next.config.js）
+3. 中间件（middleware）
+4. beforeFiles（next.config.js rewrites）
+5. 基于文件系统的路由（public/, \_next/static/, pages/, app/）
+6. afterFiles（next.config.js rewrites）
+7. 动态路由（/blog/[slug]）
+8. fallback（next.config.js rewrites）
+
+## Q12: 中间件相关配置项有哪些？
+
+A12:
+
+### 1. skipTrailingSlashRedirect
+
+- **作用**: 控制 URL 尾部斜杠的重定向行为
+- **默认行为**:
+  - `/about/` 会自动重定向到 `/about`
+  - URL 会自动更新为无斜杠版本
+- **配置示例**:
+
+```javascript
+export const config = {
+  skipTrailingSlashRedirect: true, // 禁用尾部斜杠重定向
+};
+```
+
+- **配置后效果**: 访问 `/about/` 时 URL 保持为 `/about/`
+
+### 2. Runtime 限制
+
+- 中间件只支持 Edge Runtime
+- 不支持 Node.js Runtime
+- **开发建议**:
+  - 优先使用 Web API
+  - 避免使用 Node.js API
+  - 保持中间件逻辑轻量化
+
+## 渲染篇
+
+## Q13: Next.js 中的渲染模式有哪些？
+
+A13:
+
+### 1. CSR（客户端渲染）
+
+- **工作原理**：
+  - 浏览器先下载最小化的 HTML 和 JS 文件
+  - 在客户端执行 JS，发送请求获取数据并渲染页面
+- **实现方式**：
+  - 使用 React useEffect hook
+  - 使用数据获取库（如 SWR、TanStack Query）
+- **特点**：首屏加载较慢，但现代爬虫已支持 CSR 页面的 SEO
+
+### 2. SSR（服务端渲染）
+
+- **工作原理**：
+  - 服务端获取数据并渲染完整 HTML
+  - 直接返回渲染好的页面给用户
+- **实现示例**：
+
+```javascript
+export default function Page({ data }) {
+  return <p>{JSON.stringify(data)}</p>;
+}
+
+export async function getServerSideProps() {
+  const res = await fetch(`https://api.example.com/data`);
+  const data = await res.json();
+  return { props: { data } };
+}
+```
+
+### 3. SSG（静态站点生成）
+
+- **工作原理**：在构建阶段预渲染页面为静态 HTML
+- **实现方式**：
+  - 默认模式：无数据获取时自动使用 SSG
+  - 使用 getStaticProps：获取构建时数据
+  - 使用 getStaticPaths：定义动态路由的预渲染路径
+
+### 4. ISR（增量静态再生成）
+
+- **工作原理**：
+  - 首次访问返回静态 HTML
+  - 后台重新生成新的静态页面
+  - 下次访问时提供更新后的内容
+- **实现方式**：
+
+```javascript
+export async function getStaticProps() {
+  return {
+    props: { data },
+    revalidate: 60, // 60秒后重新验证
+  };
+}
+```
+
+### 5. 混合渲染
+
+- 可以在同一页面混合使用不同渲染模式
+- 常见组合：SSG + CSR
+  - SSG 提供快速的首屏加载
+  - CSR 处理动态交互部分
+
+## Q14: React Server Component (RSC) 与传统 SSR 有什么区别？
+
+A14:
+
+### 1. 传统 SSR 的工作方式
+
+- 在页面层级通过 getServerSideProps 获取数据
+- 数据通过 props 传递给组件树
+- 服务端将整个组件树渲染为 HTML
+- 需要等待 JavaScript 下载并执行才能交互（水合过程）
+
+### 2. SSR 的局限性
+
+- 数据获取必须在组件渲染前完成
+- 组件的 JavaScript 必须加载到客户端才能水合
+- 必须等所有组件水合完成才能进行交互
+- 所有组件依赖都需要打包到 bundle 中
+
+### 3. RSC 的改进
+
+- 支持组件级别的数据获取
+- 组件依赖代码不会打包到客户端 bundle
+- 渲染为特殊格式（RSC Payload）而不是 HTML
+- 可以保持客户端状态
+
+### 4. 核心区别
+
+- **渲染重点**：
+  - SSR：侧重于整体页面渲染
+  - RSC：侧重于独立组件渲染
+- **状态保持**：
+  - SSR：每次渲染都是新的 HTML，状态不保持
+  - RSC：可以保持客户端状态，支持局部更新
+
+## Q15: Suspense 与 Streaming 的工作原理是什么？
+
+A15:
+
+### 1. Suspense 的作用
+
+- 允许推迟渲染直到满足特定条件
+- 提供 fallback UI 在数据加载期间显示
+- 不会阻塞页面其他部分的渲染
+- 支持选择性水合（Selective Hydration）
+
+### 2. Streaming 工作原理
+
+- 将页面 HTML 拆分成多个 chunks
+- 逐步从服务端发送到客户端
+- 客户端收到内容后执行 DOM 更新
+- 提前发送的组件可以提前水合
+
+### 3. 主要优势
+
+#### a) 流式渲染（Streaming Server Rendering）
+
+- 渐进式渲染 HTML
+- 无需等待所有数据加载
+- 改善首次内容绘制（FCP）
+- 缩短可交互时间（TTI）
+
+#### b) 选择性水合（Selective Hydration）
+
+- 根据用户交互决定水合优先级 用户可以和已完成水合的组件进行交互
+- 有效改善用户体验
+
+### 4. Next.js 中的实现
+
+- 页面级别：使用 loading.jsx
+- 组件级别：使用 `<Suspense>`
+
+### 5. SEO 影响
+
+- 等待 generateMetadata 完成后再流式传输
+- HTML 包含最终渲染内容 不会负面影响 SEO
+
+### 6. 局限性
+
+- JavaScript 代码量未减少
+- 所有组件仍需客户端水合
+- 建议配合 RSC 使用以获得更好性能
+
+## Q16: 服务端组件和客户端组件的区别是什么？
+
+A16:
+
+### 1. 服务端组件优势
+
+- **数据获取**：
+  - 服务端环境更优
+  - 离数据源更近
+  - 减少请求数量
+- **安全性**：
+  - 可保留敏感数据和逻辑
+  - 避免暴露给客户端
+- **性能提升**：
+  - 支持结果缓存
+  - 减少 bundle 大小
+  - 更快的 FCP
+  - 支持 Streaming
+
+### 2. 客户端组件
+
+- **声明方式**：
+  ```javascript
+  "use client";
+  ```
+- **主要优势**：
+  - 支持交互性（state、effects）
+  - 可使用浏览器 API
+  - 支持事件监听
+
+### 3. 渲染差异
+
+- **服务端组件**：
+
+  - 仅在服务端渲染
+  - 不支持状态管理
+  - 不能使用浏览器 API
+
+- **客户端组件**：
+  - 服务端首次渲染（生成初始 HTML）
+  - 客户端再次渲染（管理 DOM）
+  - 支持状态管理和交互
+
+## Q17: 服务端组件的最佳实践有哪些？
+
+A17:
+
+### 1. 数据共享处理
+
+- **使用 React 增强的 fetch**：
+  - 自带记忆缓存功能
+  - 相同请求自动复用数据
+  - 无需使用 Context 或 props 传递
+- **限制**：仅支持 GET 请求
+
+### 2. 服务端专用代码保护
+
+```javascript
+// 使用 server-only 包防止客户端使用
+import "server-only";
+
+export async function getData() {
+  const res = await fetch("https://api.example.com", {
+    headers: {
+      authorization: process.env.API_KEY,
+    },
+  });
+  return res.json();
+}
+```
+
+### 3. 处理第三方组件
+
+- **问题**：三方组件可能未声明 "use client"
+- **解决方案**：创建客户端包装组件
+
+```javascript
+// carousel.js
+'use client'
+import { Carousel } from 'acme-carousel'
+export default Carousel
+
+// page.js
+import Carousel from './carousel'
+export default function Page() {
+  return <Carousel />
+}
+```
+
+### 4. Context 使用
+
+- 服务端组件不支持 React Context
+- **解决方案**：
+  - 在客户端组件中创建和使用 Context
+  - 将 Provider 包装为客户端组件
+  - 在根组件中使用
+
+## Q18: 客户端组件的最佳实践有哪些？
+
+A18:
+
+### 1. 组件位置优化
+
+- **原则**：将客户端组件尽可能下移到组件树底部
+- **示例**：
+
+```javascript
+// ❌ 不推荐：整个布局都是客户端组件
+'use client'
+export default function Layout({ children }) {
+  return (
+    <div>
+      <SearchBar /> {/* 交互组件 */}
+      <h1>Welcome</h1> {/* 静态内容 */}
+      {children}
+    </div>
+  )
+}
+
+// ✅ 推荐：只有交互部分是客户端组件
+export default function Layout({ children }) {
+  return (
+    <div>
+      <SearchBar /> {/* 独立的客户端组件 */}
+      <h1>Welcome</h1>
+      {children}
+    </div>
+  )
+}
+```
+
+### 2. 数据传递注意事项
+
+- **序列化要求**：
+
+  - 服务端组件传递给客户端组件的数据必须可序列化
+  - 用于 React 服务端序列化和客户端反序列化过程
+
+- **可序列化的数据类型**：
+
+  - 字符串
+  - 数字
+  - 布尔值
+  - 数组
+  - 对象（普通对象）
+  - Date 对象（会被序列化为字符串）
+
+- **不可序列化的数据类型**：
+  - 函数
+  - Class 实例
+  - Symbol
+  - undefined
+  - BigInt
+
+### 3. 处理不可序列化数据
+
+- 在客户端组件内部获取数据
+- 使用第三方数据获取库
+- 转换为可序列化格式后再传递
+
+## Q19: Next.js 的服务端渲染策略有哪些？
+
+A19:
+
+### 1. 静态渲染（Static Rendering）
+
+- **特点**：
+  - 默认渲染策略
+  - 构建时渲染
+  - 结果可缓存并推送到 CDN
+- **适用场景**：
+  - 非个性化内容
+  - 数据预先已知
+  - 如博客文章、产品页面
+
+### 2. 动态渲染（Dynamic Rendering）
+
+- **触发条件**：
+  - 使用动态函数
+  - 使用未缓存的数据请求
+
+#### 未缓存数据请求的情况：
+
+```javascript
+// 以下任一情况都会导致请求退出缓存
+fetch(url, { cache: "no-store" });
+fetch(url, { revalidate: 0 });
+fetch(url, { headers: { Authorization: "..." } });
+```
+
+- **其他退出缓存的情况**：
+  - POST 方法的路由处理程序
+  - headers/cookies 方法后的 fetch
+  - 设置 `dynamic = 'force-dynamic'`
+  - 配置 fetchCache
+
+### 3. Streaming
+
+- 通过 loading.js 开启
+- 使用 React Suspense 组件
+
+### 4. 相关概念说明
+
+#### a) 局部渲染（Partial Rendering）
+
+- 仅重新渲染变化的路由段
+- 保留共享段的内容
+- 用于优化路由切换性能
+
+#### b) 动态路由（Dynamic Routes）
+
+```javascript
+export default function Page({ params }) {
+  return <div>Post: {params.slug}</div>;
+}
+```
+
+- 可以是静态生成 可以用 generateStaticParams 静态生成路由
+- 也可以是动态渲染
+
+#### c) 动态段（Dynamic Segment）
+
+- 路由中的可变部分
+- 如 `[slug]` 在 `app/blog/[slug]/page.js`
+
+## Q20: Next.js 中如何优化数据加载？
+
+A20:
+
+### 1. 预加载模式
+
+```javascript
+// app/article/[id]/page.js
+import Article, { preload, checkIsAvailable } from "./components/Article";
+
+export default async function Page({ params: { id } }) {
+  // 提前开始加载数据
+  preload(id);
+  // 同时执行其他异步任务
+  const isAvailable = await checkIsAvailable();
+
+  return isAvailable ? <Article id={id} /> : null;
+}
+```
+
+### 2. 使用 React cache
+
+```javascript
+// components/Article.js
+import { cache } from "react";
+
+// 缓存数据获取函数
+export const getArticle = cache(async (id) => {
+  // 数据获取逻辑
+});
+
+// 预加载函数
+export const preload = (id) => {
+  void getArticle(id);
+};
+
+export default async function Article({ id }) {
+  const result = await getArticle(id);
+  // 渲染逻辑
+}
+```
+
+### 3. 整合最佳实践
+
+```javascript
+// utils/get-article.js
+import { cache } from "react";
+import "server-only";
+
+// 预加载函数
+export const preloadArticle = (id) => {
+  void getArticle(id);
+};
+
+// 缓存的数据获取函数
+export const getArticle = cache(async (id) => {
+  // 数据获取逻辑
+});
+```
+
+### 4. 优化效果
+
+- 避免串行请求
+- 数据请求结果自动缓存
+- 确保数据获取只在服务端执行
+- 可在布局、页面、组件中复用
+
+## Q21: Server Actions 是什么及如何使用？
+
+A21:
+
+### 1. 基本概念
+
+- 在服务端执行的异步函数
+- 可在服务端和客户端组件中使用
+- 用于处理数据提交和更改
+
+### 2. 定义方式
+
+#### a) 函数级别
+
+```javascript
+async function handleSubmit() {
+  "use server";
+  // 服务端执行的代码
+}
+```
+
+#### b) 模块级别
+
+```javascript
+// actions.js
+"use server";
+
+export async function create() {
+  // 服务端执行的代码
+}
+
+export async function update() {
+  // 服务端执行的代码
+}
+```
+
+### 3. 使用方式
+
+#### a) 在客户端组件中导入
+
+```javascript
+import { create } from "@/app/actions";
+
+export function Button() {
+  return <button onClick={create}>Create</button>;
+}
+```
+
+#### b) 作为 props 传递
+
+```javascript
+// 父组件
+<ClientComponent updateItem={updateItem} />;
+
+// 客户端组件
+("use client");
+export default function ClientComponent({ updateItem }) {
+  return <form action={updateItem}>{/* ... */}</form>;
+}
+```
+
+### 4. 使用场景
+
+- 替代传统的 API 接口调用
+- 表单提交处理
+- 事件处理程序
+- useEffect 中的数据操作
+- 第三方库集成
+- 按钮点击操作
+
+### 5. 优势
+
+- 简化前后端交互
+- 无需手动编写 API 接口
+- 更直接的数据操作方式
+- 更好的开发体验
+
+## Q23: Next.js 中的表单处理 API 有哪些？
+
+A23:
+
+### 1. useFormStatus
+
+```javascript
+// app/submit-button.jsx
+'use client'
+import { useFormStatus } from 'react-dom'
+
+export function SubmitButton() {
+  const { pending } = useFormStatus()
+
+  return (
+    <button type="submit" aria-disabled={pending}>
+      {pending ? 'Adding' : 'Add'}
+    </button>
+  )
+}
+
+// app/page.jsx
+import { SubmitButton } from '@/app/submit-button'
+
+export default async function Home() {
+  return (
+    <form action={...}>
+      <input type="text" name="field-name" />
+      <SubmitButton />
+    </form>
+  )
+}
+```
+
+- **注意事项**：必须在 `<form>` 子组件中使用
+- **功能**：返回表单提交状态信息
+
+### 2. useFormState
+
+```javascript
+"use client";
+import { useFormState } from "react-dom";
+
+export default function Home() {
+  async function createTodo(prevState, formData) {
+    return prevState.concat(formData.get("todo"));
+  }
+
+  const [state, formAction] = useFormState(createTodo, []);
+
+  return (
+    <form action={formAction}>
+      <input type="text" name="todo" />
+      <button type="submit">Submit</button>
+      <p>{state.join(",")}</p>
+    </form>
+  );
+}
+```
+
+- **功能**：根据表单 action 结果更新状态
+- **参数**：
+  - action 函数
+  - 初始状态
+
+### 3. useOptimistic
+
+- **用途**：实现乐观更新
+- **工作方式**：
+  - 立即更新 UI
+  - 同时发送数据请求
+  - 自定义错误处理
+- **优势**：提供更好的用户体验
